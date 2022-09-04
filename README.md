@@ -9,9 +9,7 @@ This library can be used for:
 - handling binary data.
 - bridging the C API and python application.
 
-## Overview
-
-### Simple structure
+## Simple structure
 
 ```python
 import ctypes
@@ -26,39 +24,50 @@ from cdata import big, field, little
 class LittleEndianItem:
     number: int = field(ctypes.c_uint32)
     string: str = field(ctypes.c_char * 5)
+```
 
+#### Can use as normal dataclass
 
-# Can use as normal dataclass
+```python
 lei = LittleEndianItem(9999, "ABCDE")
 print(lei.number, lei.string)  # => 9999 ABCDE
+```
 
+#### Convert into ctypes.Structure
 
-# Convert into ctypes.Structure
+```python
 leic = lei.to_ctype()
 print(isinstance(leic, ctypes.Structure))  # => True
 print(leic.number, leic.string)  # => 9999 b'ABCDE'
+```
 
+#### Create instance from ctypes.Structure
 
-# Create instance from ctypes.Structure
+```python
 print(LittleEndianItem.from_ctype(leic) == lei)  # => True
+```
 
+#### Create instance from buffer (equal to ctypes.Structure.from_buffer)
 
-# Create instance from buffer (equal to ctypes.Structure.from_buffer)
+```python
 number = ctypes.c_uint32(9999)
 string = (ctypes.c_char * 10)(b"A", b"B", b"C", b"D", b"E")
+
 made_from_buffer = LittleEndianItem.from_buffer(bytearray(number) + bytearray(string))
 print(made_from_buffer.number, made_from_buffer.string)  # => 9999 ABCDE
 
 writable_buffer = bytearray(leic)
 print(LittleEndianItem.from_buffer(writable_buffer) == lei)  # => True
-
-
-# Create instance from buffer with copy (equal to ctypes.Structure.from_buffer_copy)
-readable_buffer = bytes(leic)
-print(LittleEndianItem.from_buffer_copy(readable_buffer) == lei)  # => True
 ```
 
-### Nested structure and array
+#### Create instance from buffer with copy (equal to ctypes.Structure.from_buffer_copy)
+
+```python
+readable_buffer = bytes(leic)
+print(LittleEndianItem.from_buffer_copy(readable_buffer) == lei) # => True
+```
+
+## Nested structure and array
 
 ```python
 @big
@@ -87,27 +96,33 @@ bed = BigEndianData(
 )
 
 bedc = bed.to_ctype()
-
-# Nested item
-print(bedc.item.nested_number, bedc.item.nested_string)  # => 9999 b'item9999'
-
-
-# Array
-print(bedc.item_array[0].nested_number, bedc.item_array[0].nested_string)  # => 0 b'nested0''
-print(bedc.int_array[0], bedc.int_array[1], bedc.int_array[2])  # => 0 1 2
-
-
-# Can create instance from buffer as well
-print(BigEndianData.from_buffer_copy(bytes(bedc)) == bed)  # => True
-print(BigEndianData.from_buffer(bytearray(bedc)) == bed)  # => True
-
 ```
 
-### Use MixIn class
+#### Nested item
 
-You can use MixIn class for inheritance instead of using decorators e.g. @little, @big
+```python
+print(bedc.item.nested_number, bedc.item.nested_string)  # => 9999 b'item9999'
+```
 
-This may help the IDE work on intellisense and autocomplete.
+#### Array
+
+```python
+print(bedc.item_array[0].nested_number, bedc.item_array[0].nested_string)  # => 0 b'nested0''
+print(bedc.int_array[0], bedc.int_array[1], bedc.int_array[2])  # => 0 1 2
+```
+
+#### Create instance from buffer as well
+
+```python
+print(BigEndianData.from_buffer_copy(bytes(bedc)) == bed)  # => True
+print(BigEndianData.from_buffer(bytearray(bedc)) == bed)  # => True
+```
+
+## Use MixIn class
+
+You can use MixIn class instead of using decorators e.g. @little, @big
+
+This will help your IDE give you better intellisense and autocomplete.
 
 ```python
 import ctypes
@@ -118,7 +133,7 @@ from cdata import DataClassLittleEndianStructureMixIn, field
 
 @dataclass
 class Base(DataClassLittleEndianStructureMixIn):
-    _cdata_pack = 2  # Specify the ctypes.Structure._pack_ attribute here. Use 0 by default.
+    _cdata_pack = 1  # Specify the ctypes.Structure._pack_ attribute here. Use 1 by default.
 
 
 @dataclass
