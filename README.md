@@ -1,8 +1,10 @@
-# cdata (Python dataclass for C structure)
+# cdataclass - Python dataclass for C structure
+
+## Overview
 
 Integration of python dataclass and ctypes.Structure.
 
-This library provides a simple API for encoding/decoding dataclasses into ctypes.Structure/ctypes.Union.
+This library provides some API for encoding/decoding dataclasses into/from ctypes.Structure/ctypes.Union.
 
 This library can be used for:
 
@@ -17,7 +19,7 @@ import ctypes
 from dataclasses import dataclass, field
 from typing import List
 
-from cdata import BigEndianCDataMixIn, meta
+from cdataclass import BigEndianCDataMixIn, meta
 
 
 # Simple big endian C structure
