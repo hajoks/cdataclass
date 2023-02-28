@@ -11,6 +11,11 @@ This library can be used for:
 - handling packed binary data.
 - bridging the C API and python application.
 
+## Installation
+```bash
+$ pip install cdataclass
+```
+
 ## Examples
 
 ```python
