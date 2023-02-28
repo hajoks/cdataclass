@@ -4,10 +4,10 @@ with open("README.md", "r", encoding="utf-8") as f:
     readme = f.read()
 
 setup(
-    name="cdata",
+    name="cdataclass",
     version="0.1.0",
     packages=find_packages(exclude=("tests*",)),
-    package_data={"cdata": ["py.typed"]},
+    package_data={"cdataclass": ["py.typed"]},
     author="hajoks",
     author_email="syari4369@gmail.com",
     description="Integration of ctypes and dataclasses",

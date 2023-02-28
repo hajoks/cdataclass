@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from typing import List
 
 import pytest
-from cdata import LittleEndianCDataMixIn, meta
+
+from cdataclass import LittleEndianCDataMixIn, meta
 
 
 # Size = 14
