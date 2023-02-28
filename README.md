@@ -1,153 +1,137 @@
-# cdata (Python dataclass for C structure/ binary data)
+# cdata (Python dataclass for C structure)
 
-Integration of python dataclass and ctypes structured data.
+Integration of python dataclass and ctypes.Structure.
 
 This library provides a simple API for encoding/decoding dataclasses into ctypes.Structure/ctypes.Union.
 
 This library can be used for:
 
-- handling binary data.
+- handling packed binary data.
 - bridging the C API and python application.
 
-## Simple structure
+## Examples
 
 ```python
+
 import ctypes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
-from cdata import big, field, little
+from cdata import BigEndianCDataMixIn, meta
 
 
-@little
+# Simple big endian C structure
 @dataclass
-class LittleEndianItem:
-    number: int = field(ctypes.c_uint32)
-    string: str = field(ctypes.c_char * 5)
-```
+class Item(BigEndianCDataMixIn):
+    f_item_number: int = field(metadata=meta(ctypes.c_uint32))
+    f_item_bytes: bytes = field(metadata=meta(ctypes.c_char * 10))
 
-#### Can use as normal dataclass
 
-```python
-lei = LittleEndianItem(9999, "ABCDE")
-print(lei.number, lei.string)  # => 9999 ABCDE
-```
+# Use as normal dataclass
+item = Item(1, b"test")
+assert item.f_item_number == 1
+assert item.f_item_bytes == b"test"
 
-#### Convert into ctypes.Structure
 
-```python
-leic = lei.to_ctype()
-print(isinstance(leic, ctypes.Structure))  # => True
-print(leic.number, leic.string)  # => 9999 b'ABCDE'
-```
+# Get corresponding ctypes.Structure class
+c_item_class = Item.ctype()
+assert issubclass(c_item_class, ctypes.BigEndianStructure)
+assert hasattr(c_item_class, "_fields_")
+assert hasattr(c_item_class, "_pack_")
 
-#### Create instance from ctypes.Structure
 
-```python
-print(LittleEndianItem.from_ctype(leic) == lei)  # => True
-```
+# Get the size of corresponding ctypes.Structure class
+assert Item.size() == 14  # uint32(4 bytes) + c_char * 10(10 bytes) = 14
 
-#### Create instance from buffer (equal to ctypes.Structure.from_buffer)
 
-```python
-number = ctypes.c_uint32(9999)
-string = (ctypes.c_char * 10)(b"A", b"B", b"C", b"D", b"E")
+# Convert to ctype.Structure instance
+c_item = item.to_ctype()
+assert isinstance(c_item, ctypes.BigEndianStructure)
+assert c_item.f_item_number == 1
+assert c_item.f_item_bytes == b"test"
 
-made_from_buffer = LittleEndianItem.from_buffer(bytearray(number) + bytearray(string))
-print(made_from_buffer.number, made_from_buffer.string)  # => 9999 ABCDE
 
-writable_buffer = bytearray(leic)
-print(LittleEndianItem.from_buffer(writable_buffer) == lei)  # => True
-```
+# Serialize/Deserialize to/from buffer
+hex_str_represents_uint32_100 = "00 00 00 64"
+hex_str_represents_char_ABCDEFGHIJ = "41 42 43 44 45 46 47 48 49 4A"
+buffer = bytearray.fromhex(hex_str_represents_uint32_100 + " " + hex_str_represents_char_ABCDEFGHIJ)
+item = Item.from_buffer(buffer)
+assert item.f_item_number == 100
+assert item.f_item_bytes == b"ABCDEFGHIJ"
+assert item.to_bytearray() == buffer
 
-#### Create instance from buffer with copy (equal to ctypes.Structure.from_buffer_copy)
 
-```python
-readable_buffer = bytes(leic)
-print(LittleEndianItem.from_buffer_copy(readable_buffer) == lei) # => True
-```
+# Serialize/Deserialize to/from immutable buffer
+immutable_buffer = bytes(buffer)
+item = Item.from_buffer_copy(immutable_buffer)
+assert item.f_item_number == 100
+assert item.f_item_bytes == b"ABCDEFGHIJ"
+assert item.to_bytes() == immutable_buffer
 
-## Nested structure and array
 
-```python
-@big
+# Use custom ecoding/decoding functions for data conversion
 @dataclass
-class NestedItem:
-    nested_number: int = field(ctypes.c_uint32, 0)
-    nested_string: str = field(ctypes.c_char * 10, "")
+class CustomItem(BigEndianCDataMixIn):
+    f_number: int = field(
+        metadata=meta(
+            ctypes.c_char * 10,
+            encoder=lambda v: str(v).rjust(10).encode("utf-8"),
+            decoder=lambda v: int(v.decode("utf-8")),
+        )
+    )
+    f_string: str = field(
+        metadata=meta(
+            ctypes.c_char * 10,
+            encoder=lambda v: v.encode("utf-8"),
+            decoder=lambda v: v.decode("utf-8"),
+        )
+    )
 
 
-@big
+custom_item = CustomItem(100, "test")
+
+# Encode as specified
+c_custom_item = custom_item.to_ctype()
+assert c_custom_item.f_number == b"       100"
+assert c_custom_item.f_string == b"test"
+
+# Decode as specified
+custom_item = CustomItem.from_buffer_copy(custom_item.to_bytes())
+assert custom_item.f_number == 100
+assert custom_item.f_string == "test"
+
+
+# Nested structure
 @dataclass
-class BigEndianData:
-    number: int = field(ctypes.c_uint64, 0)
-    string: str = field(ctypes.c_char * 20, "")
-    item: NestedItem = field(NestedItem.ctype(), [])
-    item_array: List[NestedItem] = field(NestedItem.ctype() * 5, [])
-    int_array: List[int] = field(ctypes.c_uint16 * 5, [])
+class Data(BigEndianCDataMixIn):
+    f_number: int = field(metadata=meta(ctypes.c_uint32))
+    f_bytes: bytes = field(metadata=meta(ctypes.c_char * 20))
+    # Use cls.ctype() to define a nested structure or array of structure or whatever customized
+    f_item: Item = field(metadata=meta(Item.ctype()))
+    f_items: List[Item] = field(metadata=meta(Item.ctype() * 5))
+    f_int_array: List[int] = field(metadata=meta(ctypes.c_uint16 * 5))
 
 
-bed = BigEndianData(
+data = Data(
     1,
-    "littleendian_data",
-    NestedItem(9999, "item9999"),
-    [NestedItem(i, f"nested{i}") for i in range(5)],
+    b"data",
+    Item(100, b"item"),
+    [Item(i, bytes(f"item{i}", "utf-8")) for i in range(5)],
     [i for i in range(5)],
 )
 
-bedc = bed.to_ctype()
-```
+# Access the nested field
+c_data = data.to_ctype()
+assert c_data.f_item.f_item_number == 100
+assert c_data.f_item.f_item_bytes == b"item"
 
-#### Nested item
+# Access the nested array
+assert c_data.f_items[0].f_item_number == 0
+assert c_data.f_items[0].f_item_bytes == b"item0"
+assert c_data.f_items[4].f_item_number == 4
+assert c_data.f_items[4].f_item_bytes == b"item4"
 
-```python
-print(bedc.item.nested_number, bedc.item.nested_string)  # => 9999 b'item9999'
-```
+assert c_data.f_int_array[0] == 0
+assert c_data.f_int_array[4] == 4
 
-#### Array
-
-```python
-print(bedc.item_array[0].nested_number, bedc.item_array[0].nested_string)  # => 0 b'nested0''
-print(bedc.int_array[0], bedc.int_array[1], bedc.int_array[2])  # => 0 1 2
-```
-
-#### Create instance from buffer as well
-
-```python
-print(BigEndianData.from_buffer_copy(bytes(bedc)) == bed)  # => True
-print(BigEndianData.from_buffer(bytearray(bedc)) == bed)  # => True
-```
-
-## Use MixIn class
-
-You can use MixIn class instead of using decorators e.g. @little, @big
-
-This will help your IDE give you better intellisense and autocomplete.
-
-```python
-import ctypes
-from dataclasses import dataclass
-from typing import List
-
-from cdata import DataClassLittleEndianStructureMixIn, field
-
-@dataclass
-class Base(DataClassLittleEndianStructureMixIn):
-    _cdata_pack = 1  # Specify the ctypes.Structure._pack_ attribute here. Use 1 by default.
-
-
-@dataclass
-class Item(Base):
-    item_number: int = field(ctypes.c_uint8)
-    item_string: str = field(ctypes.c_char * 10)
-
-
-@dataclass
-class Data(Base):
-    number: int = field(ctypes.c_uint32)
-    string: str = field(ctypes.c_char * 20)
-    item: Item = field(Item.ctype())
-    items: List[Item] = field(Item.ctype() * 5)
-    int_array: List[int] = field(ctypes.c_uint16 * 6)
-    byte_array: List[int] = field(ctypes.c_byte * 7)
 ```
