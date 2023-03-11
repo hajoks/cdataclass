@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="cdataclass",
-    version="0.1.1",
+    version="0.1.2",
     packages=find_packages(exclude=("tests*",)),
     package_data={"cdataclass": ["py.typed"]},
     author="hajoks",
