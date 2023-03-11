@@ -20,35 +20,16 @@ _DEFINED_CLASSES: Dict[str, Type] = {}
 
 
 def _is_ctype_array(v: Any):
-    return (
-        isinstance(v, ctypes.Array)
-        and hasattr(v, "_length_")
-        and hasattr(v, "_type_")
-    )
+    return hasattr(v, "_length_")
 
 
 def _is_ctype_structure(v: Any):
-    return isinstance(v, (ctypes.Structure, ctypes.Union)) and hasattr(
-        v, "_fields_"
-    )
+    return hasattr(v, "_fields_")
 
 
-def _get_metadata(
-    data_class: Any, field_name: str, metadata_name: str
-) -> Optional[Any]:
-    return (
-        [f for f in fields(data_class) if f.name == field_name]
-        .pop()
-        .metadata.get(metadata_name)
-    )
-
-
-def _get_encoder(data_class: Any, field_name: str) -> Optional[CTypeEncoder]:
-    return _get_metadata(data_class, field_name, metadata.ENCODER)
-
-
-def _get_decoder(data_class: Any, field_name: str) -> Optional[CTypeDecoder]:
-    return _get_metadata(data_class, field_name, metadata.DECODER)
+@lru_cache
+def _get_metadata_map(data_class: Type, metadata_name: str) -> Dict[str, Any]:
+    return {f.name: f.metadata.get(metadata_name) for f in fields(data_class)}
 
 
 @lru_cache
@@ -75,10 +56,13 @@ def create_ctype_class(
 def dataclass_to_ctype(data_class_instance: Any) -> StructuredCType:
     """Create a ctypes.Structure instance from given dataclass instance."""
     ctype_instance = data_class_instance.__class__.ctype()()
+    encoders = _get_metadata_map(
+        data_class_instance.__class__, metadata.ENCODER
+    )
     for fname, ftype in getattr(ctype_instance, "_fields_", []):
         fvalue = getattr(ctype_instance, fname)
         dataclass_value = getattr(data_class_instance, fname)
-        encoder = _get_encoder(data_class_instance, fname)
+        encoder: Optional[CTypeEncoder] = encoders.get(fname)
         if encoder is not None:
             setattr(ctype_instance, fname, encoder(dataclass_value))
             continue
@@ -131,9 +115,10 @@ def ctype_to_dataclass(
 ) -> _T:
     """Create a dataclass instance initialized by ctypes.Structure"""
     d = {}
+    decoders = _get_metadata_map(data_class, metadata.DECODER)  # type: ignore
     for fname, _ in getattr(ctype_instance, "_fields_", []):
         fvalue = getattr(ctype_instance, fname)
-        decoder = _get_decoder(data_class, fname)
+        decoder: Optional[CTypeDecoder] = decoders.get(fname)
         if decoder is not None:
             d[fname] = decoder(fvalue)
             continue
